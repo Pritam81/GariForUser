@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gariforuser/screens/forgot_password.dart';
 import 'package:gariforuser/screens/login_screen.dart';
+import 'package:gariforuser/screens/main_page.dart';
 import 'package:gariforuser/screens/register_screen.dart';
 import 'package:gariforuser/splashscreen/splash_screen.dart';
 import 'package:device_preview/device_preview.dart';
@@ -17,6 +18,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.blue),
       home: SplashScreen(),
       routes: {
+        '/mainpage': (context) => MainPage(),
         '/forgotpassword': (context) => ForgotPasswordScreen(),
         '/loginscreen': (context) => LoginScreen(),
         '/registerscreen': (context) => RegisterScreen(),
