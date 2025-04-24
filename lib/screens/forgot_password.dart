@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -18,6 +19,49 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _obscureNewPass = true;
   bool _obscureConfirmPass = true;
 
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Function to send OTP (Firebase reset email) to user email
+  Future<void> _sendOtp() async {
+    try {
+      await _auth.sendPasswordResetEmail(email: _emailController.text.trim());
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('OTP sent to email')));
+      setState(() {
+        _isOtpSent = true;
+      });
+    } on FirebaseAuthException catch (e) {
+      String message = e.message ?? 'An error occurred';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  // Function to reset password
+  Future<void> _resetPassword() async {
+    if (_newPassController.text == _confirmPassController.text) {
+      try {
+        User? user = FirebaseAuth.instance.currentUser;
+        await user!.updatePassword(_newPassController.text.trim());
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Password reset successful')));
+        Navigator.pop(context); // Go back to login screen
+      } on FirebaseAuthException catch (e) {
+        String message = e.message ?? 'An error occurred';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Passwords do not match')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
@@ -25,7 +69,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     return Scaffold(
       body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: width * 0.05, vertical: height * 0.05),
+        padding: EdgeInsets.symmetric(
+          horizontal: width * 0.05,
+          vertical: height * 0.05,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
@@ -39,7 +86,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               SizedBox(height: height * 0.015),
               Text(
-                'Forgot Password',
+                'Forgot Password?',
                 style: TextStyle(
                   fontSize: height * 0.03,
                   fontWeight: FontWeight.bold,
@@ -52,19 +99,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 controller: _emailController,
                 decoration: InputDecoration(
                   labelText: 'Enter your registered Email',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   prefixIcon: Icon(Icons.email),
                 ),
                 validator: (value) {
                   if (value!.isEmpty) return 'Email required';
-                  if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) return 'Invalid email format';
+                  if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value))
+                    return 'Invalid email format';
                   return null;
                 },
               ),
               SizedBox(height: height * 0.02),
 
               // OTP + New Password fields after Email is submitted
-              if (_isOtpSent) ...[
+              // ignore: dead_code
+              if (false) ...[
                 // OTP Field
                 TextFormField(
                   controller: _otpController,
@@ -87,7 +138,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureNewPass ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(
+                        _obscureNewPass
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
                       onPressed: () {
                         setState(() {
                           _obscureNewPass = !_obscureNewPass;
@@ -95,9 +150,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       },
                     ),
                   ),
-                  validator: (value) => value!.length < 6
-                      ? 'Password must be at least 6 characters'
-                      : null,
+                  validator:
+                      (value) =>
+                          value!.length < 6
+                              ? 'Password must be at least 6 characters'
+                              : null,
                 ),
                 SizedBox(height: height * 0.02),
 
@@ -110,7 +167,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirmPass ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(
+                        _obscureConfirmPass
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
                       onPressed: () {
                         setState(() {
                           _obscureConfirmPass = !_obscureConfirmPass;
@@ -119,7 +180,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ),
                   validator: (value) {
-                    if (value != _newPassController.text) return 'Passwords do not match';
+                    if (value != _newPassController.text)
+                      return 'Passwords do not match';
                     return null;
                   },
                 ),
@@ -131,26 +193,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 width: double.infinity,
                 height: height * 0.065,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.yellow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
                       if (!_isOtpSent) {
-                        // Simulate sending OTP to email
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('OTP sent to email')),
-                        );
-                        setState(() {
-                          _isOtpSent = true;
-                        });
+                        // Send OTP to email
+                        _sendOtp();
                       } else {
-                        // Simulate password reset
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Password changed successfully')),
-                        );
-                        Navigator.pop(context); // Go back to login screen
+                        // Reset Password
+                        _resetPassword();
                       }
                     }
                   },
-                  child: Text(_isOtpSent ? 'Reset Password' : 'Send OTP'),
+                  child: Text(
+                    _isOtpSent ? 'Reset Password' : 'Send Reset link',
+                  ),
                 ),
               ),
             ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,10 +12,69 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+  bool _isLoading = false; // Add a variable to track loading state
 
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void clearcontroller() {
+    _emailController.clear();
+    _passwordController.clear();
+  }
+
+  Future<void> _loginUser() async {
+    setState(() {
+      _isLoading = true; // Show the loader when the login starts
+    });
+
+    try {
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      setState(() {
+        _isLoading = false; // Hide the loader when login is complete
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login successful!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      var prefs = await SharedPreferences.getInstance();
+      prefs.setBool('islogin', true);
+      clearcontroller();
+      Navigator.pushReplacementNamed(
+        context,
+        '/homescreen', // or your homepage route
+      );
+      // or your homepage route
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _isLoading = false; // Hide the loader if an error occurs
+      });
+
+      String message = '';
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found for that email.';
+          break;
+        case 'wrong-password':
+          message = 'Wrong password provided.';
+          break;
+        default:
+          message = 'Login failed. ${e.message}';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               SizedBox(height: height * 0.02),
 
-              // Email
+              // Email Field
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
@@ -60,32 +121,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value!.isEmpty) return 'Please enter your email';
-                  if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value))
+                  if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
                     return 'Enter a valid email';
+                  }
                   return null;
                 },
               ),
               SizedBox(height: height * 0.015),
 
-              // Phone
-              TextFormField(
-                controller: _phoneController,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
-                ),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value!.isEmpty) return 'Please enter your phone number';
-                  if (!RegExp(r'^\d{10}$').hasMatch(value))
-                    return 'Enter a valid 10-digit number';
-                  return null;
-                },
-              ),
-              SizedBox(height: height * 0.015),
-
-              // Password
+              // Password Field
               TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
@@ -112,12 +156,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               SizedBox(height: height * 0.015),
 
-              // Forgot Password
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    // Navigate to forgot password screen
                     Navigator.pushNamed(context, '/forgotpassword');
                   },
                   child: Text(
@@ -141,15 +183,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Logging in...')));
+                      _loginUser();
                     }
                   },
-                  child: Text(
-                    'Login',
-                    style: TextStyle(fontSize: height * 0.022),
-                  ),
+                  child:
+                      _isLoading
+                          ? CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          )
+                          : Text(
+                            'Login',
+                            style: TextStyle(fontSize: height * 0.022),
+                          ),
                 ),
               ),
             ],

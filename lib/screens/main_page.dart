@@ -50,7 +50,7 @@ class MainPage extends StatelessWidget {
               height: height * 0.06,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   );
@@ -78,7 +78,7 @@ class MainPage extends StatelessWidget {
               height: height * 0.06,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const RegisterScreen()),
                   );

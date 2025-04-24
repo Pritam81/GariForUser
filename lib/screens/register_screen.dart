@@ -1,4 +1,8 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:gariforuser/global/global.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -9,11 +13,82 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  void clearcontroller() {
+    _nameController.clear();
+    _emailController.clear();
+    _phoneController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+  }
+
+  void _submit() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      await firebaseauth
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          )
+          .then((auth) async {
+            currentuser = auth.user;
+            if (currentuser != null) {
+              Map userMap = {
+                "id": currentuser!.uid,
+                "name": _nameController.text.trim(),
+                "email": _emailController.text.trim(),
+                "phone": _phoneController.text.trim(),
+              };
+
+              DatabaseReference userRef = FirebaseDatabase.instance.ref().child(
+                "users",
+              );
+              userRef.child(currentuser!.uid).set(userMap);
+            }
+
+            await Fluttertoast.showToast(
+              msg: "Account has been created",
+              backgroundColor: Colors.yellow,
+              textColor: Colors.black,
+              fontSize: 16.0,
+            );
+
+            var prefs = await SharedPreferences.getInstance();
+            prefs.setBool("islogin", true);
+            clearcontroller();
+
+            setState(() {
+              _isLoading = false;
+            });
+
+            Navigator.pushReplacementNamed(context, '/homescreen');
+          })
+          .catchError((error) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            Fluttertoast.showToast(
+              msg: error.toString(),
+              backgroundColor: Colors.red,
+              textColor: Colors.white,
+              fontSize: 16.0,
+            );
+          });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // Name
               TextFormField(
+                controller: _nameController,
                 decoration: InputDecoration(
                   labelText: 'Name',
                   border: OutlineInputBorder(),
@@ -63,6 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // Phone Number
               TextFormField(
+                controller: _phoneController,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
                   labelText: 'Phone Number',
@@ -80,6 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // Email
               TextFormField(
+                controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'Email',
@@ -152,32 +230,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               SizedBox(height: height * 0.03),
 
-              // Register Button
+              // Register Button or Loading
               SizedBox(
                 width: double.infinity,
                 height: height * 0.065,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.yellow,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Process registration
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Registering...')));
-                    }
-                  },
-                  child: Text(
-                    'Register',
-                    style: TextStyle(fontSize: height * 0.022),
-                  ),
-                ),
+                child:
+                    _isLoading
+                        ? Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.yellow,
+                          ),
+                        )
+                        : ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.yellow,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: _submit,
+                          child: Text(
+                            'Register',
+                            style: TextStyle(
+                              fontSize: height * 0.022,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
               ),
               SizedBox(height: height * 0.02),
+
               Text(
                 "Have an account?",
                 style: TextStyle(
@@ -185,9 +267,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: Colors.black54,
                 ),
               ),
-              TextButton(onPressed: () {
-                Navigator.pushReplacementNamed(context, '/loginscreen');
-              }, child: Text('Login')),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/loginscreen');
+                },
+                child: Text('Login'),
+              ),
             ],
           ),
         ),

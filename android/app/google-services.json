@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1052731827484",
+    "project_id": "gari-b4d14",
+    "storage_bucket": "gari-b4d14.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1052731827484:android:735c8b528b234c11bcc6d9",
+        "android_client_info": {
+          "package_name": "com.example.gariforuser"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBx4lQZ3AAMVxo5sFsyFKDb_mvkODvitXg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

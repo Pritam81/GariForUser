@@ -36,6 +36,23 @@ dependencies:
   cupertino_icons: ^1.0.8
   device_preview: ^1.2.0
   flutter_spinkit: ^5.2.1
+  email_validator: ^3.0.0
+  intl_phone_field: ^3.2.0
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.2
+  firebase_database: ^11.3.5
+  firebase_storage: ^12.4.5
+  firebase_messaging: ^15.2.5
+  fluttertoast: ^8.2.12
+  shared_preferences: ^2.5.3
+  google_maps_flutter: ^2.12.1
+  geolocator: ^14.0.0
+  geocoder2: ^1.4.0
+  flutter_geofire: ^2.0.6
+  flutter_polyline_points: ^1.0.0
+  location: ^8.0.0
+  smooth_star_rating_null_safety: ^1.0.4+2
+  animated_text_kit: ^4.2.3
 
 dev_dependencies:
   flutter_test:
