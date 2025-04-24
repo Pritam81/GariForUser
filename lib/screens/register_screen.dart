@@ -101,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           horizontal: width * 0.04,
           vertical: height * 0.02,
         ),
-        child: Form(
+        child:  Form(
           key: _formKey,
           child: Column(
             children: [
