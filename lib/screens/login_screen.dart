@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      var   prefs = await SharedPreferences.getInstance();
+      var  prefs = await SharedPreferences.getInstance();
       prefs.setBool('islogin', true);
       clearcontroller();
       Navigator.pushReplacementNamed(
