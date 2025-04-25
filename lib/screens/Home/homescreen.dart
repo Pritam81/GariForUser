@@ -12,7 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
-class HomeScreen extends StatefulWidget {
+class   HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
