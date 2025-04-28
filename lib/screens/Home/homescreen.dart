@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:gariforuser/Assistants/assistants_methods.dart';
 import 'package:gariforuser/global/map_key.dart';
 import 'package:gariforuser/infoHandler/app_info.dart';
@@ -11,8 +14,9 @@ import 'package:location/location.dart' as loc;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
 
-class   HomeScreen extends StatefulWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
@@ -51,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String userName = "";
   String userEmail = "";
   bool openNavigation = true;
+  bool openNavigationDrawer = false;
   bool activeNearbyDriverkeysLoaded = false;
   BitmapDescriptor? activeNearbyIcon;
 
@@ -121,6 +126,71 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> drawPolyLineFromOriginToDestination() async {
+    var origin = LatLng(
+      userCurrentPosition!.latitude,
+      userCurrentPosition!.longitude,
+    );
+    var destination = LatLng(
+      Provider.of<AppInfo>(
+        context,
+        listen: false,
+      ).userDropOffLocation!.locationLatitude!,
+      Provider.of<AppInfo>(
+        context,
+        listen: false,
+      ).userDropOffLocation!.locationLongitude!,
+    );
+
+    // Get Route Points
+    var result = await PolylinePoints().getRouteBetweenCoordinates(
+      mapKey,
+      PointLatLng(origin.latitude, origin.longitude),
+      PointLatLng(destination.latitude, destination.longitude),
+    );
+
+    if (result.points.isNotEmpty) {
+      pLineCoordinatesList.clear();
+      for (var point in result.points) {
+        pLineCoordinatesList.add(LatLng(point.latitude, point.longitude));
+      }
+    }
+
+    polylineSet.clear();
+    setState(() {
+      // Draw the polyline
+      Polyline polyline = Polyline(
+        color: Colors.blueAccent,
+        polylineId: const PolylineId("PolylineID"),
+        jointType: JointType.round,
+        points: pLineCoordinatesList,
+        width: 5,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+        geodesic: true,
+      );
+      polylineSet.add(polyline);
+
+      // Add a marker for the origin
+      Marker originMarker = Marker(
+        markerId: MarkerId("origin"),
+        position: origin,
+        infoWindow: InfoWindow(title: "Your Location"),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      );
+      markersSet.add(originMarker);
+
+      // Add a custom marker for the destination
+      Marker destinationMarker = Marker(
+        markerId: MarkerId("destination"),
+        position: destination,
+        infoWindow: InfoWindow(title: "Destination"),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      );
+      markersSet.add(destinationMarker);
+    });
+  }
+
   @override
   void initState() {
     // TODO: implement initState
@@ -171,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
               alignment: Alignment.center,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 35),
-                child: Icon(Icons.location_on, size: 45),
+                child: Icon(Icons.location_on, size: 45, color: Colors.blue),
               ),
             ),
 
@@ -214,7 +284,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                         const SizedBox(height: 10),
+
+                        // Pickup location (read-only)
                         TextField(
+                          readOnly: true,
+                          controller: TextEditingController(
+                            text:
+                                Provider.of<AppInfo>(
+                                          context,
+                                        ).userPickUpLocation !=
+                                        null
+                                    ? "${Provider.of<AppInfo>(context).userPickUpLocation!.locationName?.substring(0, 24)}...."
+                                    : "Not getting address",
+                          ),
                           decoration: InputDecoration(
                             hintText: "Pickup location",
                             prefixIcon: Icon(Icons.my_location),
@@ -226,30 +308,62 @@ class _HomeScreenState extends State<HomeScreen> {
                               horizontal: 15,
                             ),
                           ),
-                          onChanged: (value) {
-                            // You can call geocoding API or search logic here
-                          },
                         ),
+
                         const SizedBox(height: 10),
-                        TextField(
-                          decoration: InputDecoration(
-                            hintText: "Drop location",
-                            prefixIcon: Icon(Icons.location_on_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              vertical: 10,
+
+                        // Drop location (tap navigates to search screen)
+                        GestureDetector(
+                          onTap: () async {
+                            var responseFromSearchScreen =
+                                await Navigator.pushNamed(
+                                  context,
+                                  '/searchplaces',
+                                );
+
+                            if (responseFromSearchScreen == "obtainDropOff") {
+                              setState(() {
+                                openNavigationDrawer = true;
+                              });
+                            }
+                            await drawPolyLineFromOriginToDestination();
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 15,
                               horizontal: 15,
                             ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  color: Colors.grey,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  Provider.of<AppInfo>(
+                                            context,
+                                          ).userDropOffLocation !=
+                                          null
+                                      ? "${Provider.of<AppInfo>(context).userDropOffLocation!.locationName}"
+                                      : "Where to?",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          onChanged: (value) {
-                            // You can call geocoding API or search logic here
-                          },
                         ),
+
                         const SizedBox(height: 10),
                         ElevatedButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
                             // Trigger route calculation / navigation
                           },
                           icon: Icon(Icons.search),
@@ -269,10 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Positioned(
-            //   top: 40,
-            //   right: 20,
-            //   left: 20,
+            // Center(
             //   child: Container(
             //     decoration: BoxDecoration(
             //       border: Border.all(
