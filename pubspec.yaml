@@ -55,6 +55,8 @@ dependencies:
   animated_text_kit: ^4.2.3
   provider: ^6.1.4
   lucide_icons_flutter: ^3.0.0
+  share_plus: ^7.2.1
+  url_launcher: ^6.2.4
 
 dev_dependencies:
   flutter_test:

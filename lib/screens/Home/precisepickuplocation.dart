@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:gariforuser/Assistants/assistants_methods.dart';
 import 'package:gariforuser/global/map_key.dart';
@@ -59,7 +58,7 @@ class _PrecisePickUpScreenState extends State<PrecisePickUpScreen> {
     // Access the name property through the instance
   }
 
-    getAddressFromLatLng() async {
+  getAddressFromLatLng() async {
     try {
       GeoData data = await Geocoder2.getDataFromCoordinates(
         latitude: pickupLocation!.latitude,
@@ -89,6 +88,7 @@ class _PrecisePickUpScreenState extends State<PrecisePickUpScreen> {
       body: Stack(
         children: [
           GoogleMap(
+            padding: EdgeInsets.only(bottom: bottomPaddingOfMap,top: 100),
             mapType: MapType.normal,
             myLocationEnabled: true,
             zoomControlsEnabled: true,
@@ -98,7 +98,9 @@ class _PrecisePickUpScreenState extends State<PrecisePickUpScreen> {
             onMapCreated: (GoogleMapController controller) {
               _controllerGoogleMap.complete(controller);
               newGoogleMapController = controller;
-              setState(() {});
+              setState(() {
+                bottomPaddingOfMap = 50;
+              });
               locateuserPosition();
             },
             onCameraMove: (CameraPosition? position) {
@@ -108,21 +110,78 @@ class _PrecisePickUpScreenState extends State<PrecisePickUpScreen> {
                 });
               }
             },
-              onCameraIdle: () {
-                if (pickupLocation != null) {
-                  // Call the function to get address from LatLng
-                  getAddressFromLatLng();
-                }
-              },
+            onCameraIdle: () {
+              if (pickupLocation != null) {
+                // Call the function to get address from LatLng
+                getAddressFromLatLng();
+              }
+            },
+          ),
+          Align(
+            alignment: Alignment.center,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 35),
+              child: Icon(Icons.location_on, size: 45, color: Colors.blue),
             ),
-            Align(
-              alignment: Alignment.center,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 35),
-                child: Icon(Icons.location_on, size: 45, color: Colors.blue),
+          ),
+          Positioned(
+            top: 40,
+            left: 20,
+            right: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: const Color.fromARGB(255, 198, 10, 10),
+                ),
+              ),
+              padding: EdgeInsets.all(20),
+              child: Text(
+                Provider.of<AppInfo>(context).userPickUpLocation != null
+                    ? "${Provider.of<AppInfo>(context).userPickUpLocation!.locationName?.substring(0, 24)}...."
+                    : "not getting address",
+                overflow: TextOverflow.visible,
+                style: const TextStyle(
+                  fontSize: 20,
+                  //color: Color.fromARGB(255, 198, 10, 10),
+                  fontWeight: FontWeight.bold,
+                ),
+                softWrap: true,
               ),
             ),
-          
+          ),
+
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
+                ),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(height: 10),
+                  Text(
+                    "Set pickup location",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Handle button press
+                      Navigator.pop(context);
+                    },
+                    child: Text("Confirm Location"),
+                  ),
+                ],
+              ),
+            ),
+          ),  
         ],
       ),
     );

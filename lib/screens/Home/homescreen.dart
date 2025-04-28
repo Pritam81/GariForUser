@@ -7,6 +7,7 @@ import 'package:gariforuser/global/map_key.dart';
 import 'package:gariforuser/infoHandler/app_info.dart';
 import 'package:gariforuser/model/direction.dart';
 import 'package:gariforuser/model/usermodel.dart';
+import 'package:gariforuser/screens/drawer/drawerscreen.dart';
 import 'package:geocoder2/geocoder2.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -206,6 +207,8 @@ class _HomeScreenState extends State<HomeScreen> {
         FocusScope.of(context).unfocus(); // Dismiss the keyboard
       },
       child: Scaffold(
+        drawer: DrawerScreen(),
+        key: _scaffoldKey,
         body: Stack(
           children: [
             GoogleMap(
@@ -349,8 +352,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                             context,
                                           ).userDropOffLocation !=
                                           null
-                                      ? "${Provider.of<AppInfo>(context).userDropOffLocation!.locationName}"
+                                      ? "${Provider.of<AppInfo>(context).userDropOffLocation!.locationName?.substring(0, Provider.of<AppInfo>(context).userDropOffLocation!.locationName!.length > 35 ? 35 : Provider.of<AppInfo>(context).userDropOffLocation!.locationName!.length)}...."
                                       : "Where to?",
+
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.black54,
@@ -362,19 +366,51 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
 
                         const SizedBox(height: 10),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            // Trigger route calculation / navigation
-                          },
-                          icon: Icon(Icons.search),
-                          label: Text("Find Route"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            padding: EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 20,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color.fromARGB(
+                                    255,
+                                    197,
+                                    167,
+                                    243,
+                                  ),
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8.0),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/precisepickuplocation',
+                                  );
+                                },
+                                child: Text("Change Pickup"),
+                              ),
                             ),
-                          ),
+
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  103,
+                                  239,
+                                  112,
+                                ),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
+                              ),
+                              onPressed: () {},
+                              child: Text("Request Ride"),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -405,6 +441,22 @@ class _HomeScreenState extends State<HomeScreen> {
             //     ),
             //   ),
             // ),
+            Positioned(
+              left: 20,
+              top: 500,
+              child: Container(
+                child: GestureDetector(
+                  onTap: () {
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black54,
+                    radius: 25,
+                    child: Icon(Icons.menu, color: Colors.white, size: 30),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
