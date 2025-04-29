@@ -1,12 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:gariforuser/Assistants/assistants_methods.dart';
+import 'package:gariforuser/Assistants/geofire_assistant.dart';
 import 'package:gariforuser/global/map_key.dart';
 import 'package:gariforuser/infoHandler/app_info.dart';
 import 'package:gariforuser/model/direction.dart';
 import 'package:gariforuser/model/usermodel.dart';
+import 'package:gariforuser/screens/Home/acrive_nearby_available_drivers.dart';
 import 'package:gariforuser/screens/drawer/drawerscreen.dart';
 import 'package:geocoder2/geocoder2.dart';
 import 'package:geolocator/geolocator.dart';
@@ -87,9 +90,108 @@ class _HomeScreenState extends State<HomeScreen> {
     Usermodel userModelInstance =
         Usermodel(); // Create an instance of Usermodel
     userName = userModelInstance.name!;
-    userEmail =
-        userModelInstance
-            .email!; // Access the name property through the instance
+    userEmail = userModelInstance.email!;
+
+    initializeGeoFireListener(); // Access the name property through the instance
+  }
+
+  initializeGeoFireListener() async {
+    // Initialize GeoFire listener here
+    // Example: await GeoFire.initializeGeoFireListener();
+    Geofire.initialize("activeDrivers");
+    Geofire.queryAtLocation(
+      userCurrentPosition!.latitude,
+      userCurrentPosition!.longitude,
+      10.0, // radius in km
+    )?.listen((map) {
+      if (map != null) {
+        var callBack = map["callBack"];
+        switch (callBack) {
+          case Geofire.onKeyEntered:
+            ActiveNearByAvailableDrivers activeNearByAvailableDrivers =
+                ActiveNearByAvailableDrivers();
+            activeNearByAvailableDrivers.driverId = map["key"];
+            activeNearByAvailableDrivers.latitude = map["latitude"];
+
+            activeNearByAvailableDrivers.longitude = map["longitude"];
+            GeoFireAssistant.activeNearByAvailableDriversList.add(
+              activeNearByAvailableDrivers,
+            );
+            if (activeNearbyDriverkeysLoaded == true) {
+              displayActiveDriversOnUsersMap();
+            }
+
+            break;
+          case Geofire.onKeyExited:
+            GeoFireAssistant.deleteOfflineDriverFromList(map["key"]);
+            displayActiveDriversOnUsersMap();
+
+            break;
+          case Geofire.onKeyMoved:
+            ActiveNearByAvailableDrivers activeNearByAvailableDrivers =
+                ActiveNearByAvailableDrivers();
+            activeNearByAvailableDrivers.driverId = map["key"];
+            activeNearByAvailableDrivers.latitude = map["latitude"];
+            activeNearByAvailableDrivers.longitude = map["longitude"];
+            GeoFireAssistant.updateActiveNearByAvailableDriversLocation(
+              activeNearByAvailableDrivers,
+            );
+
+            break;
+          case Geofire.onGeoQueryReady:
+            activeNearbyDriverkeysLoaded = true;
+            displayActiveDriversOnUsersMap();
+            break;
+        }
+      }
+      setState(() {});
+    });
+  }
+
+  displayActiveDriversOnUsersMap() {
+    setState(() {
+      markersSet.clear();
+      circleSet.clear();
+
+      Set<Marker> driverMarkersSet = Set<Marker>();
+
+      for (ActiveNearByAvailableDrivers eachDriver
+          in GeoFireAssistant.activeNearByAvailableDriversList) {
+        LatLng driverActivePosition = LatLng(
+          eachDriver.latitude!,
+          eachDriver.longitude!,
+        );
+        Marker marker = Marker(
+          markerId: MarkerId("driver${eachDriver.driverId}"),
+          position: driverActivePosition,
+          icon: activeNearbyIcon!,
+          rotation: 360,
+          infoWindow: InfoWindow(
+            title: eachDriver.driverId,
+            snippet: "Driver is Here",
+          ),
+        );
+        driverMarkersSet.add(marker);
+      }
+      setState(() {
+        markersSet = driverMarkersSet;
+      });
+    });
+  }
+
+  createActiveNearByDriverMarker() {
+    if (activeNearbyIcon == null) {
+      ImageConfiguration imageConfiguration = createLocalImageConfiguration(
+        context,
+        size: Size(0.2, 0.2),
+      );
+      BitmapDescriptor.fromAssetImage(
+        imageConfiguration,
+        "assets/images/car_topview.png",
+      ).then((value) {
+        activeNearbyIcon = value;
+      });
+    }
   }
 
   // initializeGeoFireListener() async {
@@ -202,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    createActiveNearByDriverMarker();
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus(); // Dismiss the keyboard
