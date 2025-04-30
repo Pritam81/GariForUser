@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   LatLng? pickupLocation;
   loc.Location? currentLocation;
   String? _address;
+  double suggestedRideContainerHeight = 0.0;
 
   final Completer<GoogleMapController> _controllerGoogleMap =
       Completer<GoogleMapController>();
@@ -93,6 +94,13 @@ class _HomeScreenState extends State<HomeScreen> {
     userEmail = userModelInstance.email!;
 
     initializeGeoFireListener(); // Access the name property through the instance
+  }
+
+  void showSuggestedRideContainer() {
+    setState(() {
+      suggestedRideContainerHeight = 400.0;
+      bottomPaddingOfMap = 400.0;
+    });
   }
 
   initializeGeoFireListener() async {
@@ -510,7 +518,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                   borderRadius: BorderRadius.circular(8.0),
                                 ),
                               ),
-                              onPressed: () {},
+                              onPressed: () {
+                                if (Provider.of<AppInfo>(
+                                      context,
+                                      listen: false,
+                                    ).userDropOffLocation !=
+                                    null) {
+                                  showSuggestedRideContainer();
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Please select a drop-off location.",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
                               child: Text("Request Ride"),
                             ),
                           ],
@@ -557,6 +581,192 @@ class _HomeScreenState extends State<HomeScreen> {
                     radius: 25,
                     child: Icon(Icons.menu, color: Colors.white, size: 30),
                   ),
+                ),
+              ),
+            ),
+
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                height: suggestedRideContainerHeight,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 8),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+
+                    // ORIGIN & DESTINATION ROW
+                    SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        "Suggested Rides",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Expanded(
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(left: 16),
+                        itemCount: 5,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12.0),
+                            child: Container(
+                              width: 220,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Ride Type ${index + 1}",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+
+                                    // Car Image
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.asset(
+                                        "assets/images/taxilogo.png", // replace with your ride image
+                                        height: 100,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+
+                                    SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.directions_car,
+                                          color: Colors.blueGrey,
+                                          size: 18,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text("Sedan • AC"),
+                                      ],
+                                    ),
+                                    SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.star,
+                                          size: 18,
+                                          color: Colors.orange,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text("4.${index + 1} ★"),
+                                      ],
+                                    ),
+                                    Spacer(),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          "₹ ${(index + 1) * 100}",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {},
+                                          style: ElevatedButton.styleFrom(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 6,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            backgroundColor: Colors.blueAccent,
+                                          ),
+                                          child: Text("Select"),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    // CLOSE BUTTON
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8,
+                      ),
+                      child: Center(
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() {
+                              suggestedRideContainerHeight = 0.0;
+                              bottomPaddingOfMap = 0.0;
+                            });
+                          },
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.blueAccent,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
