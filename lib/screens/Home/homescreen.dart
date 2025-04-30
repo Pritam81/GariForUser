@@ -1,14 +1,18 @@
 import 'dart:convert';
 
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:gariforuser/Assistants/assistants_methods.dart';
 import 'package:gariforuser/Assistants/geofire_assistant.dart';
+import 'package:gariforuser/global/global.dart';
 import 'package:gariforuser/global/map_key.dart';
 import 'package:gariforuser/infoHandler/app_info.dart';
 import 'package:gariforuser/model/direction.dart';
 import 'package:gariforuser/model/usermodel.dart';
+import 'package:gariforuser/screens/Fare/payfareamount.dart';
 import 'package:gariforuser/screens/Home/acrive_nearby_available_drivers.dart';
 import 'package:gariforuser/screens/drawer/drawerscreen.dart';
 import 'package:geocoder2/geocoder2.dart';
@@ -17,6 +21,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as loc;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 
@@ -32,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   loc.Location? currentLocation;
   String? _address;
   double suggestedRideContainerHeight = 0.0;
+  // 60 to 600 inclusive
 
   final Completer<GoogleMapController> _controllerGoogleMap =
       Completer<GoogleMapController>();
@@ -299,6 +305,290 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
       );
       markersSet.add(destinationMarker);
+    });
+  }
+
+  DatabaseReference? referenceRideRequest;
+  String driverRideStatus = "Driver is Coming";
+  StreamSubscription<DatabaseEvent>? tripRideRequestInfoStreamSubscription;
+  String userRideRequesrtStatus = "";
+  List<ActiveNearByAvailableDrivers> onlineNearbyAvailableDriversList = [];
+  saveRideRequestInformation() {
+    referenceRideRequest =
+        FirebaseDatabase.instance.ref().child(" All Ride Requests").push();
+    var originLocation =
+        Provider.of<AppInfo>(context, listen: false).userPickUpLocation;
+    var destinationLocation =
+        Provider.of<AppInfo>(context, listen: false).userDropOffLocation;
+
+    Map originLocationMap = {
+      "latitude": originLocation!.locationLatitude.toString(),
+      "longitude": originLocation.locationLongitude.toString(),
+    };
+    Map destinationLocationMap = {
+      "latitude": destinationLocation!.locationLatitude.toString(),
+      "longitude": destinationLocation.locationLongitude.toString(),
+    };
+    Map userInformationMap = {
+      "origin": originLocationMap,
+      "destination": destinationLocationMap,
+      "time": DateTime.now().toString(),
+      "userName": Usermodel().name,
+      "userPhone": Usermodel().phone,
+      "originAddress": originLocation.locationName,
+      "destinationAddress": destinationLocation.locationName,
+      "driverId": "waiting",
+    };
+    referenceRideRequest!.set(userInformationMap);
+    tripRideRequestInfoStreamSubscription = referenceRideRequest!.onValue
+        .listen((eventsnap) async {
+          if (eventsnap.snapshot.value == null) {
+            return;
+          }
+          if ((eventsnap.snapshot.value as Map)["car_details"] != null) {
+            setState(() {
+              driverCarDetails =
+                  (eventsnap.snapshot.value as Map)["car_details"].toString();
+            });
+          }
+          if ((eventsnap.snapshot.value as Map)["driverName"] != null) {
+            setState(() {
+              driverCarDetails =
+                  (eventsnap.snapshot.value as Map)["driverName"].toString();
+            });
+          }
+          if ((eventsnap.snapshot.value as Map)["driverPhone"] != null) {
+            setState(() {
+              driverCarDetails =
+                  (eventsnap.snapshot.value as Map)["driverPhone"].toString();
+            });
+          }
+          if ((eventsnap.snapshot.value as Map)["status"] != null) {
+            setState(() {
+              userRideRequesrtStatus =
+                  (eventsnap.snapshot.value as Map)["status"].toString();
+            });
+          }
+          if ((eventsnap.snapshot.value as Map)["driverLocation"] != null) {
+            double driverCurrentPositionLat = double.parse(
+              (eventsnap.snapshot.value as Map)["driverLocation"]["latitude"]
+                  .toString(),
+            );
+            double driverCurrentPositionLng = double.parse(
+              (eventsnap.snapshot.value as Map)["driverLocation"]["longitude"]
+                  .toString(),
+            );
+
+            LatLng driverCurrentPositionLatLng = LatLng(
+              driverCurrentPositionLat,
+              driverCurrentPositionLng,
+            );
+
+            if (userRideRequesrtStatus == "accepted") {
+              updateArrivalTimeToUserPickUpLocation(
+                driverCurrentPositionLatLng,
+              );
+            }
+            if (userRideRequesrtStatus == "arrived") {
+              setState(() {
+                driverRideStatus = "Driver has arrived";
+              });
+            }
+            if (userRideRequesrtStatus == "ontrip") {
+              updateReachingTimeToUserDropOffLocation(
+                driverCurrentPositionLatLng,
+              );
+            }
+            if (userRideRequesrtStatus == "ended") {
+              if ((eventsnap.snapshot.value as Map)["FareAmount"] != null) {
+                double fareAmount = double.parse(
+                  (eventsnap.snapshot.value as Map)["FareAmount"].toString(),
+                );
+
+                var response = await showDialog(
+                  context: context,
+                  builder:
+                      (BuildContext context) =>
+                          PayFareAmountDialog(fareAmount: fareAmount),
+                );
+
+                if (response == "Cash Paid") {
+                  if ((eventsnap.snapshot.value as Map)["driverId"] != null) {
+                    String assignedDriverId =
+                        (eventsnap.snapshot.value as Map)["driverId"]
+                            .toString();
+                    //navigate to rate screen
+                    referenceRideRequest!.onDisconnect();
+                    tripRideRequestInfoStreamSubscription!.cancel();
+                  }
+                }
+              }
+            }
+          }
+        });
+
+    onlineNearbyAvailableDriversList =
+        GeoFireAssistant.activeNearByAvailableDriversList;
+    searchNearestOnlineDrivers();
+  }
+
+  bool requestPostionInfo = true;
+  updateArrivalTimeToUserPickUpLocation(
+    LatLng driverCurrentPositionLatLng,
+  ) async {
+    if (requestPostionInfo == true) {
+      requestPostionInfo = false;
+      LatLng userPickUpPosition = LatLng(
+        userCurrentPosition!.latitude,
+        userCurrentPosition!.longitude,
+      );
+      var directiondetailsinfo =
+          await AssistantsMethods.obtainOriginToDestinationDirectionDetails(
+            driverCurrentPositionLatLng,
+            userPickUpPosition,
+          );
+      if (directiondetailsinfo == null) {
+        return;
+      }
+      setState(() {
+        driverRideStatus =
+            "Driver is Coming" +
+            " " +
+            directiondetailsinfo.durationText.toString();
+      });
+      requestPostionInfo = true;
+    }
+  }
+
+  updateReachingTimeToUserDropOffLocation(
+    LatLng driverCurrentPositionLatLng,
+  ) async {
+    if (requestPostionInfo == true) {
+      requestPostionInfo = false;
+      var dropOffLocation =
+          Provider.of<AppInfo>(context, listen: false).userDropOffLocation;
+      LatLng userDestinationPosition = LatLng(
+        dropOffLocation!.locationLatitude!,
+        dropOffLocation.locationLongitude!,
+      );
+      var directiondetailsinfo =
+          await AssistantsMethods.obtainOriginToDestinationDirectionDetails(
+            driverCurrentPositionLatLng,
+            userDestinationPosition,
+          );
+      if (directiondetailsinfo == null) {
+        return;
+      }
+      setState(() {
+        driverRideStatus =
+            "Going Towards Destination" +
+            " " +
+            directiondetailsinfo.durationText.toString();
+      });
+      requestPostionInfo = true;
+    }
+  }
+
+  double searchingForDriverContainerHeight = 0.0;
+
+  void showSearchingForDriverContainer() {
+    setState(() {
+      searchingForDriverContainerHeight = 200.0;
+    });
+  }
+
+  searchNearestOnlineDrivers() async {
+    if (onlineNearbyAvailableDriversList == 0) {
+      referenceRideRequest!.remove();
+      setState(() {
+        polylineSet.clear();
+        markersSet.clear();
+        circleSet.clear();
+        pLineCoordinatesList.clear();
+      });
+
+      Fluttertoast.showToast(
+        msg: "No Online Driver Found",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+      Fluttertoast.showToast(
+        msg: "Please try again later",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+
+      referenceRideRequest!.remove();
+      return;
+    }
+    await retrieveOnlineDriverInformation(onlineNearbyAvailableDriversList);
+    print("Driver List" + driversList.toString());
+
+    for (int i = 0; i < driversList.length; i++) {
+      AssistantsMethods.sendNotificationToDriverNow(
+        driversList[i]["token"],
+        referenceRideRequest!.key ?? '',
+        context,
+      );
+    }
+    Fluttertoast.showToast(
+      msg: "Notification Sent to Driver",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
+    showSearchingForDriverContainer();
+
+    await FirebaseDatabase.instance
+        .ref()
+        .child("All Ride Requests")
+        .child(referenceRideRequest!.key!)
+        .child("driverId")
+        .onValue
+        .listen((eventRideRequestSnapshot) {
+          print(
+            "event snapshot" +
+                eventRideRequestSnapshot.snapshot.value.toString(),
+          );
+          if (eventRideRequestSnapshot.snapshot.value != null) {
+            if (eventRideRequestSnapshot.snapshot.value != "waiting") {
+              showUIforassignerDriverInfo();
+            }
+          }
+        });
+  }
+
+  retrieveOnlineDriverInformation(List onlineNearestDriverList) async {
+    driversList.clear();
+    DatabaseReference ref = FirebaseDatabase.instance.ref().child("drivers");
+    for (int i = 0; i < onlineNearestDriverList.length; i++) {
+      await ref
+          .child(onlineNearestDriverList[i].driverId!.toString())
+          .once()
+          .then((dataSnapshot) {
+            var driverKeyInfo = dataSnapshot.snapshot.value;
+            driversList.add(driverKeyInfo);
+
+            print("Driver Key: ${driverKeyInfo}");
+          });
+    }
+  }
+
+  void showUIforassignerDriverInfo() {
+    setState(() {
+      waitingResponsefromDriverContainerHeight = 0;
+      searchLocationContainerHeight = 0;
+      assignedDriverInfoContainerHeight = 200.0;
+      bottomPaddingOfMap = 200.0;
+      suggestedRideContainerHeight = 0.0;
     });
   }
 
@@ -635,112 +925,102 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     SizedBox(height: 10),
-                    Expanded(
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(left: 16),
-                        itemCount: 5,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: Container(
-                              width: 220,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Ride Type ${index + 1}",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-
-                                    // Car Image
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.asset(
-                                        "assets/images/taxilogo.png", // replace with your ride image
-                                        height: 100,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-
-                                    SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.directions_car,
-                                          color: Colors.blueGrey,
-                                          size: 18,
-                                        ),
-                                        SizedBox(width: 6),
-                                        Text("Sedan • AC"),
-                                      ],
-                                    ),
-                                    SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.star,
-                                          size: 18,
-                                          color: Colors.orange,
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text("4.${index + 1} ★"),
-                                      ],
-                                    ),
-                                    Spacer(),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          "₹ ${(index + 1) * 100}",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () {},
-                                          style: ElevatedButton.styleFrom(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: 14,
-                                              vertical: 6,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            backgroundColor: Colors.blueAccent,
-                                          ),
-                                          child: Text("Select"),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                    SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 240,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Sedan Ride",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                              SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.asset(
+                                  "assets/images/taxilogo.png",
+                                  height: 100,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.directions_car,
+                                    color: Colors.blueGrey,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text("Sedan • AC"),
+                                ],
+                              ),
+                              SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.star,
+                                    size: 18,
+                                    color: Colors.orange,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text("4.5 ★"),
+                                ],
+                              ),
+                              SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "₹ 560",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      saveRideRequestInformation();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 6,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      backgroundColor: Colors.blueAccent,
+                                    ),
+                                    child: Text("Select"),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
 
@@ -770,6 +1050,81 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+
+            // Positioned(
+            //   bottom: 0,
+            //   left: 0,
+            //   right: 0,
+            //   child: Container(
+            //     height:searchLocationContainerHeight,
+            //     decoration: BoxDecoration(
+            //       color: Colors.white,
+            //       borderRadius: BorderRadius.only(
+            //         topLeft: Radius.circular(20),
+            //         topRight: Radius.circular(20),
+            //       ),
+            //       boxShadow: [
+            //         BoxShadow(
+            //           color: Colors.black12,
+            //           blurRadius: 10,
+            //           spreadRadius: 5,
+            //         ),
+            //       ],
+            //     ),
+            //     child: Column(
+            //       mainAxisAlignment: MainAxisAlignment.center,
+            //       crossAxisAlignment: CrossAxisAlignment.center,
+            //       children: [
+            //         LinearProgressIndicator(
+            //           value: 0.7,
+            //           backgroundColor: Colors.grey[300],
+            //           color: Colors.blueAccent,
+            //         ),
+            //         SizedBox(height: 10),
+            //         Center(
+            //           child: Text(
+            //             "Searching for nearby drivers...",
+            //             style: TextStyle(
+            //               fontSize: 16,
+            //               fontWeight: FontWeight.bold,
+            //               color: Colors.black87,
+            //             ),
+            //           ),
+            //         ),
+            //         SizedBox(height: 10),
+            //         GestureDetector(onTap: (){
+            //           referenceRideRequest!.remove();
+            //           setState(() {
+            //             searchingForDriverContainerHeight = 0.0;
+            //             bottomPaddingOfMap = 0.0;
+            //           });
+
+            //         },
+            //         child: Container(
+            //           width: 200,
+            //           height: 50,
+            //           decoration: BoxDecoration(
+            //             color: Colors.blueAccent,
+            //             borderRadius: BorderRadius.circular(10),
+            //           ),
+            //           child: Center(
+            //             child: Text(
+            //               "Cancel",
+            //               style: TextStyle(
+            //                 fontSize: 18,
+            //                 fontWeight: FontWeight.bold,
+            //                 color: Colors.white,
+            //               ),
+            //             ),
+            //           ),
+            //         ),
+            //         ),
+            //         SizedBox(height: 10),
+
+            //       ],
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),
