@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_geofire/flutter_geofire.dart';
@@ -14,6 +15,7 @@ import 'package:gariforuser/model/direction.dart';
 import 'package:gariforuser/model/usermodel.dart';
 import 'package:gariforuser/screens/Fare/payfareamount.dart';
 import 'package:gariforuser/screens/Home/acrive_nearby_available_drivers.dart';
+import 'package:gariforuser/screens/Home/rideacceptance.dart';
 import 'package:gariforuser/screens/drawer/drawerscreen.dart';
 import 'package:geocoder2/geocoder2.dart';
 import 'package:geolocator/geolocator.dart';
@@ -313,9 +315,24 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<DatabaseEvent>? tripRideRequestInfoStreamSubscription;
   String userRideRequesrtStatus = "";
   List<ActiveNearByAvailableDrivers> onlineNearbyAvailableDriversList = [];
-  saveRideRequestInformation() {
+  void saveRideRequestInformation() async {
+    DatabaseReference userRef = FirebaseDatabase.instance
+        .ref()
+        .child("users")
+        .child(FirebaseAuth.instance.currentUser!.uid);
+
+    DataSnapshot snapshot = await userRef.get();
+
+    if (!snapshot.exists) {
+      print("User data not found");
+      return;
+    }
+
+    Usermodel userModel = Usermodel.fromSnapshot(snapshot);
+
     referenceRideRequest =
-        FirebaseDatabase.instance.ref().child(" All Ride Requests").push();
+        FirebaseDatabase.instance.ref().child("All Ride Requests").push();
+
     var originLocation =
         Provider.of<AppInfo>(context, listen: false).userPickUpLocation;
     var destinationLocation =
@@ -333,50 +350,54 @@ class _HomeScreenState extends State<HomeScreen> {
       "origin": originLocationMap,
       "destination": destinationLocationMap,
       "time": DateTime.now().toString(),
-      "userName": Usermodel().name,
-      "userPhone": Usermodel().phone,
+      "userName": userModel.name,
+      "userPhone": userModel.phone,
       "originAddress": originLocation.locationName,
       "destinationAddress": destinationLocation.locationName,
       "driverId": "waiting",
     };
+
     referenceRideRequest!.set(userInformationMap);
+
     tripRideRequestInfoStreamSubscription = referenceRideRequest!.onValue
         .listen((eventsnap) async {
           if (eventsnap.snapshot.value == null) {
             return;
           }
-          if ((eventsnap.snapshot.value as Map)["car_details"] != null) {
+
+          final data = eventsnap.snapshot.value as Map;
+
+          if (data["car_details"] != null) {
             setState(() {
-              driverCarDetails =
-                  (eventsnap.snapshot.value as Map)["car_details"].toString();
+              driverCarDetails = data["car_details"].toString();
             });
           }
-          if ((eventsnap.snapshot.value as Map)["driverName"] != null) {
+
+          if (data["driverName"] != null) {
             setState(() {
-              driverCarDetails =
-                  (eventsnap.snapshot.value as Map)["driverName"].toString();
+              driverCarDetails = data["driverName"].toString();
+              print(driverCarDetails + "driver name");
             });
           }
-          if ((eventsnap.snapshot.value as Map)["driverPhone"] != null) {
+
+          if (data["driverPhone"] != null) {
             setState(() {
-              driverCarDetails =
-                  (eventsnap.snapshot.value as Map)["driverPhone"].toString();
+              driverCarDetails = data["driverPhone"].toString();
             });
           }
-          if ((eventsnap.snapshot.value as Map)["status"] != null) {
+
+          if (data["status"] != null) {
             setState(() {
-              userRideRequesrtStatus =
-                  (eventsnap.snapshot.value as Map)["status"].toString();
+              userRideRequesrtStatus = data["status"].toString();
             });
           }
-          if ((eventsnap.snapshot.value as Map)["driverLocation"] != null) {
+
+          if (data["driverLocation"] != null) {
             double driverCurrentPositionLat = double.parse(
-              (eventsnap.snapshot.value as Map)["driverLocation"]["latitude"]
-                  .toString(),
+              data["driverLocation"]["latitude"].toString(),
             );
             double driverCurrentPositionLng = double.parse(
-              (eventsnap.snapshot.value as Map)["driverLocation"]["longitude"]
-                  .toString(),
+              data["driverLocation"]["longitude"].toString(),
             );
 
             LatLng driverCurrentPositionLatLng = LatLng(
@@ -400,10 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
             if (userRideRequesrtStatus == "ended") {
-              if ((eventsnap.snapshot.value as Map)["FareAmount"] != null) {
-                double fareAmount = double.parse(
-                  (eventsnap.snapshot.value as Map)["FareAmount"].toString(),
-                );
+              if (data["FareAmount"] != null) {
+                double fareAmount = double.parse(data["FareAmount"].toString());
 
                 var response = await showDialog(
                   context: context,
@@ -413,13 +432,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
 
                 if (response == "Cash Paid") {
-                  if ((eventsnap.snapshot.value as Map)["driverId"] != null) {
-                    String assignedDriverId =
-                        (eventsnap.snapshot.value as Map)["driverId"]
-                            .toString();
-                    //navigate to rate screen
+                  if (data["driverId"] != null) {
+                    String assignedDriverId = data["driverId"].toString();
                     referenceRideRequest!.onDisconnect();
                     tripRideRequestInfoStreamSubscription!.cancel();
+                    // Navigate to rating screen here
                   }
                 }
               }
@@ -554,10 +571,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .child("driverId")
         .onValue
         .listen((eventRideRequestSnapshot) {
-          print(
-            "event snapshot" +
-                eventRideRequestSnapshot.snapshot.value.toString(),
-          );
+          print("event snapshot${eventRideRequestSnapshot.snapshot.value}");
           if (eventRideRequestSnapshot.snapshot.value != null) {
             if (eventRideRequestSnapshot.snapshot.value != "waiting") {
               showUIforassignerDriverInfo();
@@ -698,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           context,
                                         ).userPickUpLocation !=
                                         null
-                                    ? "${Provider.of<AppInfo>(context).userPickUpLocation!.locationName?.substring(0, 24)}...."
+                                    ? "${Provider.of<AppInfo>(context).userPickUpLocation!.locationName!.length > 24 ? Provider.of<AppInfo>(context).userPickUpLocation!.locationName!.substring(0, 24) : Provider.of<AppInfo>(context).userPickUpLocation!.locationName}...."
                                     : "Not getting address",
                           ),
                           decoration: InputDecoration(
@@ -895,158 +909,182 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 8),
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 8),
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: 10),
+                      SizedBox(height: 10),
 
-                    // ORIGIN & DESTINATION ROW
-                    SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text(
-                        "Suggested Rides",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                      // ORIGIN & DESTINATION ROW
+                      SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text(
+                          "Suggested Rides",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: 10),
-                    SizedBox(height: 10),
-                    Center(
-                      child: Container(
-                        width: 240,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 6,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Sedan Ride",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(
-                                  "assets/images/taxilogo.png",
-                                  height: 100,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.directions_car,
-                                    color: Colors.blueGrey,
-                                    size: 18,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text("Sedan • AC"),
-                                ],
-                              ),
-                              SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.star,
-                                    size: 18,
-                                    color: Colors.orange,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text("4.5 ★"),
-                                ],
-                              ),
-                              SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "₹ 560",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      saveRideRequestInformation();
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 6,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      backgroundColor: Colors.blueAccent,
-                                    ),
-                                    child: Text("Select"),
-                                  ),
-                                ],
+                      SizedBox(height: 10),
+                      SizedBox(height: 10),
+                      Center(
+                        child: Container(
+                          width: 240,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: Offset(0, 4),
                               ),
                             ],
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
-                        ),
-                      ),
-                    ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Sedan Ride",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset(
+                                    "assets/images/taxilogo.png",
+                                    height: 100,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.directions_car,
+                                      color: Colors.blueGrey,
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text("Sedan • AC"),
+                                  ],
+                                ),
+                                SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      size: 18,
+                                      color: Colors.orange,
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text("4.5 ★"),
+                                  ],
+                                ),
+                                SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "₹ 560",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        saveRideRequestInformation();
+                                        DatabaseReference rideRequestRef =
+                                            FirebaseDatabase.instance
+                                                .ref()
+                                                .child("All Ride Requests")
+                                                .push();
 
-                    // CLOSE BUTTON
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8,
-                      ),
-                      child: Center(
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() {
-                              suggestedRideContainerHeight = 0.0;
-                              bottomPaddingOfMap = 0.0;
-                            });
-                          },
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.blueAccent,
-                            size: 30,
+                                        String rideRequestId =
+                                            rideRequestRef.key!;
+                                        setState(() {
+                                          suggestedRideContainerHeight = 0.0;
+                                          bottomPaddingOfMap = 0.0;
+                                        });
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) =>
+                                                    RideRequestsWithDriverInfo(),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 6,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.blueAccent,
+                                      ),
+                                      child: Text("Select"),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+
+                      // CLOSE BUTTON
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 8,
+                        ),
+                        child: Center(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() {
+                                suggestedRideContainerHeight = 0.0;
+                                bottomPaddingOfMap = 0.0;
+                              });
+                            },
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.blueAccent,
+                              size: 30,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1056,7 +1094,7 @@ class _HomeScreenState extends State<HomeScreen> {
             //   left: 0,
             //   right: 0,
             //   child: Container(
-            //     height:searchLocationContainerHeight,
+            //     height: searchingForDriverContainerHeight,
             //     decoration: BoxDecoration(
             //       color: Colors.white,
             //       borderRadius: BorderRadius.only(
@@ -1092,35 +1130,34 @@ class _HomeScreenState extends State<HomeScreen> {
             //           ),
             //         ),
             //         SizedBox(height: 10),
-            //         GestureDetector(onTap: (){
-            //           referenceRideRequest!.remove();
-            //           setState(() {
-            //             searchingForDriverContainerHeight = 0.0;
-            //             bottomPaddingOfMap = 0.0;
-            //           });
-
-            //         },
-            //         child: Container(
-            //           width: 200,
-            //           height: 50,
-            //           decoration: BoxDecoration(
-            //             color: Colors.blueAccent,
-            //             borderRadius: BorderRadius.circular(10),
-            //           ),
-            //           child: Center(
-            //             child: Text(
-            //               "Cancel",
-            //               style: TextStyle(
-            //                 fontSize: 18,
-            //                 fontWeight: FontWeight.bold,
-            //                 color: Colors.white,
+            //         GestureDetector(
+            //           onTap: () {
+            //             referenceRideRequest!.remove();
+            //             setState(() {
+            //               searchingForDriverContainerHeight = 0.0;
+            //               bottomPaddingOfMap = 0.0;
+            //             });
+            //           },
+            //           child: Container(
+            //             width: 200,
+            //             height: 50,
+            //             decoration: BoxDecoration(
+            //               color: Colors.blueAccent,
+            //               borderRadius: BorderRadius.circular(10),
+            //             ),
+            //             child: Center(
+            //               child: Text(
+            //                 "Cancel",
+            //                 style: TextStyle(
+            //                   fontSize: 18,
+            //                   fontWeight: FontWeight.bold,
+            //                   color: Colors.white,
+            //                 ),
             //               ),
             //             ),
             //           ),
             //         ),
-            //         ),
             //         SizedBox(height: 10),
-
             //       ],
             //     ),
             //   ),

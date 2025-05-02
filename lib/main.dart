@@ -13,7 +13,7 @@ import 'package:device_preview/device_preview.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
-   WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   print("Firebase initializing...");
   await Firebase.initializeApp();
   print("Firebase initialized successfully.");
