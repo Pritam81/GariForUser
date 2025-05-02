@@ -6,7 +6,7 @@ class AppInfo extends ChangeNotifier {
   int countTotalTrips = 0;
 
 
-  void updatePickUpLocationAddress(Directions pickUpLocation) {
+  void   updatePickUpLocationAddress(Directions pickUpLocation) {
     userPickUpLocation = pickUpLocation;
     notifyListeners();
   }
