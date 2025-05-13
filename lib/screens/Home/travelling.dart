@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:gariforuser/model/usermodel.dart';
 import 'package:gariforuser/screens/Fare/razorpaykey.dart';
 import 'package:gariforuser/screens/Home/homescreen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class TravellingPage extends StatefulWidget {
   final String driverName;
@@ -32,16 +34,73 @@ class TravellingPage extends StatefulWidget {
 }
 
 class _TravellingPageState extends State<TravellingPage> {
-  void _triggerSOS(BuildContext context) {
-    final message = "🚨 SOS! I need help. Please contact me immediately.";
-    Share.share(message);
+  final _razorpay = Razorpay();
+  Usermodel? userModel;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
-  final String phoneNumber = "+919749922509"; // Replace with your phone number
+  Future<void> fetchUserData() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      DatabaseReference userRef = FirebaseDatabase.instance
+          .ref()
+          .child("users")
+          .child(currentUser.uid);
+
+      userRef.once().then((DatabaseEvent event) {
+        DataSnapshot snapshot = event.snapshot;
+        if (snapshot.exists) {
+          setState(() {
+            userModel = Usermodel.fromSnapshot(snapshot);
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    Fluttertoast.showToast(
+      msg: "Payment Successful! Thank you for travelling with us!",
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
+    );
+    Future.delayed(const Duration(seconds: 2), () {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (Route<dynamic> route) => false,
+      );
+    });
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    Fluttertoast.showToast(
+      msg: "Payment failed. Please try again.",
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    Fluttertoast.showToast(
+      msg: "External Wallet selected: ${response.walletName}",
+    );
+  }
 
   Future<void> _sendSosMessage(BuildContext context) async {
     try {
-      // Request location permission if not granted
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
@@ -56,17 +115,15 @@ class _TravellingPageState extends State<TravellingPage> {
         return;
       }
 
-      // Get current position
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
       String message =
-          "🚨 SOS Alert 🚨\nI'm in danger. Please help!\nLocation:\nhttps://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}";
+          "SOS Alert! I'm in danger. Please help!\nLocation: https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}";
 
-      // SMS URL with recipient
       final Uri smsUri = Uri.parse(
-        "sms:+918101525213?body=${Uri.encodeComponent(message)}",
+        "sms:+919800687500?body=${Uri.encodeComponent(message)}",
       );
 
       if (await canLaunchUrl(smsUri)) {
@@ -83,157 +140,175 @@ class _TravellingPageState extends State<TravellingPage> {
     }
   }
 
-  var _razorpay = Razorpay();
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
-  }
-
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    Fluttertoast.showToast(
-      msg: "Payment Successful! Thank you for travelling with us!",
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
+  Widget _buildInfoSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        ...children,
+        const SizedBox(height: 20),
+      ],
     );
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-        (Route<dynamic> route) => false,
-      );
-    });
-
-    // Do something when payment succeeds
   }
 
-  void _handlePaymentError(PaymentFailureResponse response) {
-    // Do something when payment fails
+  Widget _buildInfoRow(
+    IconData icon,
+    String text, {
+    Color iconColor = Colors.black87,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
+        ],
+      ),
+    );
   }
 
-  void _handleExternalWallet(ExternalWalletResponse response) {
-    // Do something when an external wallet is selected
+  String _formatOrigin(String origin) {
+    // Check if it starts with a number and contains a comma
+    if (origin.isNotEmpty &&
+        RegExp(r'^\d').hasMatch(origin) &&
+        origin.contains(',')) {
+      return origin.substring(origin.indexOf(',') + 1).trim();
+    }
+    return origin;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Travelling...")),
+      appBar: AppBar(title: const Text("Travelling")),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "🛣 You're on your way!",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.location_on, color: Colors.green),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text("From: ${widget.origin.split(',')[1].trim()}"),
+        padding: const EdgeInsets.only(top: 5.0, left: 16, right: 16),
+        child:
+            userModel == null
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "You're on your way!",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildInfoRow(
+                        Icons.location_on,
+                        "From: ${_formatOrigin(widget.origin)}",
+                        iconColor: Colors.green,
+                      ),
+                      _buildInfoRow(
+                        Icons.flag,
+                        "To: ${widget.destination}",
+                        iconColor: Colors.redAccent,
+                      ),
+                      const Divider(height: 32, thickness: 1.5),
+                      _buildInfoSection(
+                        title: "Your Info",
+                        children: [
+                          _buildInfoRow(
+                            Icons.person,
+                            userModel!.name ?? "Name",
+                          ),
+                          _buildInfoRow(
+                            Icons.phone,
+                            userModel!.phone ?? "Phone",
+                          ),
+                        ],
+                      ),
+                      _buildInfoSection(
+                        title: "Driver Info",
+                        children: [
+                          _buildInfoRow(
+                            Icons.person,
+                            widget.driverName,
+                            iconColor: Colors.blue,
+                          ),
+                          _buildInfoRow(
+                            Icons.phone,
+                            widget.driverPhone,
+                            iconColor: Colors.green,
+                          ),
+                          _buildInfoRow(
+                            Icons.directions_car,
+                            "${widget.carModel} - ${widget.carColor}",
+                            iconColor: Colors.deepPurple,
+                          ),
+                          _buildInfoRow(
+                            Icons.confirmation_number,
+                            "Car No: ${widget.carNumber}",
+                            iconColor: Colors.orange,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 0),
+                      const Center(
+                        child: Text(
+                          "Enjoy your ride and stay safe!",
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _sendSosMessage(context),
+                            icon: const Icon(Icons.warning),
+                            label: const Text("SOS"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text("Reached Destination?"),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _razorpay.open({
+                            'key': API_Key,
+                            'amount': 50 * 100,
+                            'name': 'Gariforuser',
+                            'description': 'Fare Payment',
+                            'timeout': 360,
+                          });
+                        },
+                        icon: const Icon(Icons.payment),
+                        label: const Text("Payment"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.flag, color: Colors.redAccent),
-                const SizedBox(width: 8),
-                Expanded(child: Text("To: ${widget.destination}")),
-              ],
-            ),
-            const Divider(height: 32, thickness: 1.5),
-            const Text(
-              "👨‍✈️ Driver Information",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.person, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(widget.driverName),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.phone, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(widget.driverPhone),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.directions_car, color: Colors.deepPurple),
-                const SizedBox(width: 8),
-                Text("${widget.carModel} - ${widget.carColor}"),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.confirmation_number, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text("Car No: ${widget.carNumber}"),
-              ],
-            ),
-            const Spacer(),
-            const Center(
-              child: Text(
-                "Enjoy your ride and stay safe!",
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text("Reached Destination?"),
-
-            ElevatedButton(
-              onPressed: () {
-                var options = {
-                  'key': API_Key,
-                  'amount': 115 * 100, //in the smallest currency sub-unit.
-                  'name': 'Gariforuser',
-                  'description': 'Fare Payment',
-
-                  'description': 'DONATION',
-                  'timeout': 360, // in seconds
-                };
-
-                _razorpay.open(options);
-
-                //razorpay api
-              },
-              child: Text("Pay Fare"),
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          _sendSosMessage(context);
-          // Uncomment the line be
-          //low to call the driver directly
-          // launch("tel:${widget.driverPhone}");
-        },
-        icon: const Icon(Icons.warning),
-        label: const Text("SOS"),
-        backgroundColor: Colors.redAccent,
       ),
     );
   }
